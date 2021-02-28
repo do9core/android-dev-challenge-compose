@@ -22,9 +22,12 @@ import com.example.androiddevchallenge.data.PuppyRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -33,13 +36,27 @@ class DetailsViewModel : ViewModel() {
     private val _puppy: MutableStateFlow<Puppy?> = MutableStateFlow(null)
     val puppy: StateFlow<Puppy?> get() = _puppy.asStateFlow()
 
+    val isFavourite: StateFlow<Boolean> =
+        combine(puppy, PuppyRepository.favourite) { currentPuppy, favourites ->
+            currentPuppy?.id in favourites
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(3000), false)
+
     fun findPuppy(puppyId: Long): Job {
         return viewModelScope.launch {
             PuppyRepository.puppies().collect { puppies ->
                 _puppy.value = withContext(Dispatchers.Default) {
-                    puppies?.findLast { it.id == puppyId }
+                    puppies?.find { it.id == puppyId }
                 }
             }
+        }
+    }
+
+    fun toggleFavourite() {
+        val puppyId = puppy.value?.id ?: return
+        if (isFavourite.value) {
+            PuppyRepository.cancelFavourite(puppyId)
+        } else {
+            PuppyRepository.favourite(puppyId)
         }
     }
 }
