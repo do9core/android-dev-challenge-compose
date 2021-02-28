@@ -4,7 +4,7 @@
 <!--- You can find both of these in the url bar when you open your repository in github. -->
 ![Workflow result](https://github.com/do9core/android-dev-challenge-compose/workflows/Check/badge.svg)
 
-Template repository for the Jetpack Compose [#AndroidDevChallenge](https://developer.android.com/dev-challenge).
+Jetpack Compose [#AndroidDevChallenge](https://developer.android.com/dev-challenge).
 
 ## :scroll: Description
 <!--- Describe your app in one or two sentences -->
