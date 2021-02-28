@@ -25,6 +25,8 @@ import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight.Companion.Bold
 import androidx.compose.ui.unit.dp
@@ -39,7 +41,8 @@ import dev.chrisbanes.accompanist.coil.CoilImage
 @Composable
 fun Details(navController: NavController, puppyId: Long) {
     val viewModel = viewModel<DetailsViewModel>()
-    DetailsInternal(navController, viewModel.puppy)
+    val puppy by viewModel.puppy.collectAsState()
+    DetailsInternal(navController, puppy)
     DisposableEffect(puppyId) {
         val job = viewModel.findPuppy(puppyId)
         onDispose {

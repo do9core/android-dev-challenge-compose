@@ -15,26 +15,30 @@
  */
 package com.example.androiddevchallenge.ui.pages.home
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.androiddevchallenge.data.Puppies
 import com.example.androiddevchallenge.data.Puppy
-import kotlinx.coroutines.delay
+import com.example.androiddevchallenge.data.PuppyRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlin.random.Random
+import kotlinx.coroutines.withContext
+
+private typealias PuppyData = Map<Char, List<Puppy>>
 
 class HomeViewModel : ViewModel() {
 
     private val mutex = Mutex()
     private var isLoading: Boolean = false
 
-    var puppies: List<Puppy>? by mutableStateOf(null)
-    var favourites: Set<Long> by mutableStateOf(emptySet())
+    private val _groupedPuppies: MutableStateFlow<PuppyData?> = MutableStateFlow(null)
+    val groupedPuppies: StateFlow<PuppyData?> get() = _groupedPuppies
+
+    val favourites: StateFlow<Set<Long>> get() = PuppyRepository.favourite
 
     init {
         loadPuppies()
@@ -44,22 +48,24 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             mutex.withLock {
                 if (isLoading) {
-                    return@launch
+                    return@withLock
                 }
                 isLoading = true
-                puppies = null
-                delay(1500)
-                puppies = if (Random.nextDouble() < 0.2) emptyList() else Puppies
+                PuppyRepository.puppies().collect { sortedPuppies ->
+                    _groupedPuppies.value = withContext(Dispatchers.Default) {
+                        sortedPuppies?.groupBy { it.name[0] }
+                    }
+                }
                 isLoading = false
             }
         }
     }
 
     fun toggleFavourite(puppyId: Long, favourite: Boolean) {
-        favourites = if (favourite) {
-            favourites + puppyId
+        if (favourite) {
+            PuppyRepository.favourite(puppyId)
         } else {
-            favourites - puppyId
+            PuppyRepository.cancelFavourite(puppyId)
         }
     }
 }

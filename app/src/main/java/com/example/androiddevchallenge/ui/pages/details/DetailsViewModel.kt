@@ -15,25 +15,31 @@
  */
 package com.example.androiddevchallenge.ui.pages.details
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.androiddevchallenge.data.Puppies
 import com.example.androiddevchallenge.data.Puppy
+import com.example.androiddevchallenge.data.PuppyRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class DetailsViewModel : ViewModel() {
 
-    var puppy: Puppy? by mutableStateOf(null)
+    private val _puppy: MutableStateFlow<Puppy?> = MutableStateFlow(null)
+    val puppy: StateFlow<Puppy?> get() = _puppy.asStateFlow()
 
     fun findPuppy(puppyId: Long): Job {
         return viewModelScope.launch {
-            delay(1500)
-            puppy = Puppies.find { it.id == puppyId }
+            PuppyRepository.puppies().collect { puppies ->
+                _puppy.value = withContext(Dispatchers.Default) {
+                    puppies?.findLast { it.id == puppyId }
+                }
+            }
         }
     }
 }

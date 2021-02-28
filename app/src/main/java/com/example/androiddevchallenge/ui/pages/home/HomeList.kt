@@ -15,20 +15,26 @@
  */
 package com.example.androiddevchallenge.ui.pages.home
 
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.Card
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.Divider
 import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Icon
 import androidx.compose.material.IconToggleButton
@@ -40,6 +46,8 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,34 +62,58 @@ import com.example.androiddevchallenge.ui.components.AppTopBar
 import com.example.androiddevchallenge.ui.components.LoadingBody
 import dev.chrisbanes.accompanist.coil.CoilImage
 
+@OptIn(ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
 @Composable
 fun HomeList(navController: NavController) {
     val viewModel = viewModel<HomeViewModel>()
+    val listState = rememberLazyListState()
     Scaffold(
         topBar = { AppTopBar() },
         floatingActionButton = {
-            AddFab(
-                onClick = { viewModel.loadPuppies() }
+            val fabSize by animateDpAsState(
+                targetValue = if (listState.isScrollInProgress) 0.dp else 56.dp
             )
+            FloatingActionButton(
+                onClick = { viewModel.loadPuppies() },
+                modifier = Modifier.requiredSize(fabSize),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Add a new puppy.",
+                )
+            }
         },
     ) {
-        val puppies = viewModel.puppies
+        val groupedPuppies by viewModel.groupedPuppies.collectAsState()
+        val favouriteIds by viewModel.favourites.collectAsState()
+
+        @Suppress("UnnecessaryVariable")
+        val lGroupedPuppies = groupedPuppies
         when {
-            puppies == null -> LoadingBody()
-            puppies.isEmpty() -> EmptyListBody()
-            else -> LazyColumn {
-                items(puppies) { puppy ->
-                    PuppyItem(
-                        puppy = puppy,
-                        onClick = {
-                            val destination = Details.forPuppy(it.id)
-                            navController.navigate(destination)
-                        },
-                        isFavourite = puppy.id in viewModel.favourites,
-                        onToggleFavourite = { puppyId, favourite ->
-                            viewModel.toggleFavourite(puppyId, favourite)
+            lGroupedPuppies == null -> LoadingBody()
+            lGroupedPuppies.isEmpty() -> EmptyListBody()
+            else -> LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(bottom = 80.dp),
+            ) {
+                lGroupedPuppies.forEach { (groupCharacter, puppies) ->
+                    stickyHeader { GroupHeader(character = groupCharacter) }
+                    itemsIndexed(puppies) { index, puppy ->
+                        PuppyItem(
+                            puppy = puppy,
+                            onClick = {
+                                val destination = Details.forPuppy(it.id)
+                                navController.navigate(destination)
+                            },
+                            isFavourite = puppy.id in favouriteIds,
+                            onToggleFavourite = { puppyId, favourite ->
+                                viewModel.toggleFavourite(puppyId, favourite)
+                            }
+                        )
+                        if (index != puppies.lastIndex) {
+                            Divider()
                         }
-                    )
+                    }
                 }
             }
         }
@@ -104,11 +136,18 @@ fun EmptyListBody() {
 }
 
 @Composable
-fun AddFab(onClick: () -> Unit) {
-    FloatingActionButton(onClick) {
-        Icon(
-            imageVector = Icons.Default.Refresh,
-            contentDescription = "Add a new puppy."
+fun LazyItemScope.GroupHeader(character: Char) {
+    Row(
+        modifier = Modifier
+            .fillParentMaxWidth()
+            .background(MaterialTheme.colors.secondary.copy(alpha = 0.2f))
+    ) {
+        Text(
+            text = character.toString(),
+            style = MaterialTheme.typography.subtitle1.copy(
+                color = MaterialTheme.typography.subtitle1.color.copy(alpha = 0.7f)
+            ),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
     }
 }
@@ -120,65 +159,58 @@ fun LazyItemScope.PuppyItem(
     onClick: (puppy: Puppy) -> Unit,
     onToggleFavourite: (puppyId: Long, favourite: Boolean) -> Unit,
 ) {
-    Card(
+    Row(
         modifier = Modifier
             .fillParentMaxWidth()
-            .padding(4.dp)
+            .height(88.dp)
             .clickable { onClick(puppy) }
     ) {
-        Row(
+        CoilImage(
+            data = puppy.imageSource,
+            contentDescription = "Puppy image",
+            fadeIn = true,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
-                .fillMaxWidth()
-                .height(88.dp)
+                .fillMaxHeight()
+                .width(128.dp)
+        )
+        Column(
+            modifier = Modifier
+                .padding(start = 8.dp, top = 4.dp)
+                .weight(1f)
         ) {
-            CoilImage(
-                data = puppy.imageSource,
-                contentDescription = "Puppy image",
-                fadeIn = true,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(128.dp)
+            Text(
+                text = "${puppy.name} ${if (puppy.male) "♂️" else "♀️"}",
+                style = MaterialTheme.typography.body1,
             )
-            Column(
-                modifier = Modifier
-                    .padding(start = 8.dp, top = 4.dp)
-                    .fillMaxSize()
-            ) {
-                Text(
-                    text = "${puppy.name} ${if (puppy.male) "♂️" else "♀️"}",
-                    style = MaterialTheme.typography.body1,
-                )
-                Box(modifier = Modifier.height(2.dp))
-                Text(
-                    text = puppy.variety,
-                    style = MaterialTheme.typography.caption.copy(
-                        color = MaterialTheme.typography.caption.color.copy(
-                            alpha = 0.4f
-                        )
-                    ),
-                )
-
-                IconToggleButton(
-                    checked = isFavourite,
-                    onCheckedChange = { onToggleFavourite(puppy.id, it) },
-                    modifier = Modifier.align(Alignment.End),
-                ) {
-                    Icon(
-                        imageVector = if (isFavourite) {
-                            Icons.Default.Favorite
-                        } else {
-                            Icons.Default.FavoriteBorder
-                        },
-                        contentDescription = "Favourite toggle button.",
-                        tint = if (isFavourite) {
-                            Color.Red.copy(alpha = 0.85f)
-                        } else {
-                            Color.Gray
-                        }
+            Box(modifier = Modifier.height(2.dp))
+            Text(
+                text = puppy.variety,
+                style = MaterialTheme.typography.caption.copy(
+                    color = MaterialTheme.typography.caption.color.copy(
+                        alpha = 0.4f
                     )
+                ),
+            )
+        }
+        IconToggleButton(
+            checked = isFavourite,
+            onCheckedChange = { onToggleFavourite(puppy.id, it) },
+            modifier = Modifier.align(Alignment.CenterVertically),
+        ) {
+            Icon(
+                imageVector = if (isFavourite) {
+                    Icons.Default.Favorite
+                } else {
+                    Icons.Default.FavoriteBorder
+                },
+                contentDescription = "Favourite toggle button.",
+                tint = if (isFavourite) {
+                    Color.Red.copy(alpha = 0.85f)
+                } else {
+                    Color.Gray
                 }
-            }
+            )
         }
     }
 }
